@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Trumpet Trainer MVP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Trumpet Trainer</p>
+          <h1>Play the notes, match the timing.</h1>
+          <p class="subhead">
+            Load a MusicXML file, see a static staff, and follow the moving playhead
+            while your mic listens for pitch.
+          </p>
+        </div>
+        <div class="status">
+          <div class="status-item">
+            <span class="label">Tempo</span>
+            <span id="tempo">--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Target</span>
+            <span id="target-note">--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">You</span>
+            <span id="current-note">--</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="layout">
+        <div class="panel controls">
+          <h2>Controls</h2>
+          <div class="control-group">
+            <label class="file">
+              <input id="file-input" type="file" accept=".xml,.musicxml" />
+              <span>Choose MusicXML</span>
+            </label>
+            <button id="sample-btn">Use Sample</button>
+          </div>
+          <div class="control-group">
+            <button id="play-btn">Play</button>
+            <button id="pause-btn">Pause</button>
+          </div>
+          <div class="control-group">
+            <button id="mic-btn">Start Mic</button>
+          </div>
+          <div class="control-group">
+            <label class="label">Detected Frequency</label>
+            <div id="freq" class="value">--</div>
+          </div>
+          <div class="control-group">
+            <label class="label">Status</label>
+            <div id="status" class="value">Load a MusicXML file to begin.</div>
+          </div>
+        </div>
+
+        <div class="panel stage">
+          <canvas id="score" width="980" height="420"></canvas>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

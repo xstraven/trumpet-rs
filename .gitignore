@@ -1,0 +1,11 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# wasm-pack output
+/web/pkg/
+
+# Optional JS tooling output (if added later)
+/web/node_modules/
+/web/dist/
+/web/.parcel-cache/
