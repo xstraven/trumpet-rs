@@ -47,7 +47,10 @@
               <input id="file-input" type="file" accept=".xml,.musicxml" />
               <span>Choose MusicXML</span>
             </label>
-            <button id="sample-btn">Use Sample</button>
+          </div>
+          <div class="control-group">
+            <select id="builtin-select" class="piece-select" aria-label="Built-in piece"></select>
+            <button id="load-builtin-btn">Load Built-in</button>
           </div>
           <div class="control-group">
             <button id="play-btn">Play</button>
@@ -62,7 +65,7 @@
           </div>
           <div class="control-group">
             <label class="label">Status</label>
-            <div id="status" class="value">Load a MusicXML file to begin.</div>
+            <div id="status" class="value">Loading app...</div>
           </div>
         </div>
 

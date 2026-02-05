@@ -4,7 +4,8 @@ const canvas = document.getElementById("score");
 const ctx = canvas.getContext("2d");
 
 const fileInput = document.getElementById("file-input");
-const sampleBtn = document.getElementById("sample-btn");
+const builtinSelect = document.getElementById("builtin-select");
+const loadBuiltinBtn = document.getElementById("load-builtin-btn");
 const playBtn = document.getElementById("play-btn");
 const pauseBtn = document.getElementById("pause-btn");
 const micBtn = document.getElementById("mic-btn");
@@ -27,6 +28,25 @@ let audioCtx = null;
 let analyser = null;
 let micActive = false;
 let micBuffer = null;
+
+const DEFAULT_BUILTIN_ID = "happy-birthday";
+const BUILTIN_PIECES = [
+  {
+    id: "happy-birthday",
+    label: "Happy Birthday",
+    path: "./assets/happy_birthday.musicxml",
+  },
+  {
+    id: "hot-cross-buns",
+    label: "Hot Cross Buns",
+    path: "./assets/hot_cross_buns.musicxml",
+  },
+  {
+    id: "ode-to-joy",
+    label: "Ode to Joy",
+    path: "./assets/ode_to_joy.musicxml",
+  },
+];
 
 const layout = {
   leftPad: 40,
@@ -194,13 +214,25 @@ function pausePlayback() {
   updateTargetDisplay(lastBeat);
 }
 
-async function parseAndLoad(xml) {
+function populateBuiltinSelector() {
+  builtinSelect.innerHTML = "";
+  for (const piece of BUILTIN_PIECES) {
+    const option = document.createElement("option");
+    option.value = piece.id;
+    option.textContent = piece.label;
+    builtinSelect.appendChild(option);
+  }
+}
+
+async function parseAndLoad(xml, sourceName = "MusicXML") {
   if (!wasmReady) {
     setStatus("WASM not ready yet.");
-    return;
+    return false;
   }
   try {
     const parsed = parse_musicxml(xml);
+    playing = false;
+    lastBeat = 0;
     score = parsed;
     totalBeats = 0;
     for (const note of score.notes) {
@@ -208,11 +240,34 @@ async function parseAndLoad(xml) {
     }
     secondsPerBeat = 60 / score.tempo;
     tempoEl.textContent = `${score.tempo.toFixed(0)} bpm`;
-    setStatus("MusicXML loaded. Press Play.");
+    setStatus(`${sourceName} loaded. Press Play.`);
     drawScore(0);
     updateTargetDisplay(0);
+    return true;
   } catch (err) {
-    setStatus(`Error parsing XML: ${err}`);
+    setStatus(`Error parsing ${sourceName}: ${err}`);
+    return false;
+  }
+}
+
+async function loadBuiltinPiece(pieceId) {
+  const piece = BUILTIN_PIECES.find((candidate) => candidate.id === pieceId);
+  if (!piece) {
+    setStatus("Unknown built-in piece selected.");
+    return false;
+  }
+
+  setStatus(`Loading built-in piece: ${piece.label}...`);
+  try {
+    const response = await fetch(piece.path);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const xml = await response.text();
+    return await parseAndLoad(xml, piece.label);
+  } catch (err) {
+    setStatus(`Error loading built-in piece "${piece.label}": ${err}`);
+    return false;
   }
 }
 
@@ -262,14 +317,13 @@ function updateMic() {
 fileInput.addEventListener("change", async (event) => {
   const file = event.target.files[0];
   if (!file) return;
+  setStatus(`Loading file: ${file.name}...`);
   const xml = await file.text();
-  parseAndLoad(xml);
+  await parseAndLoad(xml, file.name);
 });
 
-sampleBtn.addEventListener("click", async () => {
-  const response = await fetch("./assets/sample.musicxml");
-  const xml = await response.text();
-  parseAndLoad(xml);
+loadBuiltinBtn.addEventListener("click", async () => {
+  await loadBuiltinPiece(builtinSelect.value);
 });
 
 playBtn.addEventListener("click", startPlayback);
@@ -288,8 +342,13 @@ async function boot() {
   setStatus("Loading WASM...");
   await init();
   wasmReady = true;
-  setStatus("Ready. Load a MusicXML file to begin.");
-  drawScore(0);
+  populateBuiltinSelector();
+  builtinSelect.value = DEFAULT_BUILTIN_ID;
+  const loaded = await loadBuiltinPiece(DEFAULT_BUILTIN_ID);
+  if (!loaded) {
+    setStatus("Ready. Choose a built-in piece or load a MusicXML file.");
+    drawScore(0);
+  }
 }
 
 boot();
