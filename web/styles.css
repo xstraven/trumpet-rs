@@ -175,6 +175,35 @@ button:active {
   overflow: hidden;
 }
 
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.view-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.view-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+  transform: none;
+  box-shadow: none;
+}
+
+.view-btn.active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
 canvas {
   width: 100%;
   height: auto;
@@ -192,6 +221,180 @@ canvas {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Pitch meter */
+.pitch-meter-item {
+  min-width: 200px;
+}
+
+#pitch-meter {
+  display: block;
+  width: 100%;
+  height: 40px;
+  border-radius: 8px;
+}
+
+/* Divider */
+.divider {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 8px 0 12px;
+}
+
+.controls h3 {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+#generate-exercise {
+  background: var(--accent-2);
+}
+
+/* Results panel overlay */
+.results-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(24, 20, 17, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+
+.results-panel.visible {
+  display: flex;
+}
+
+.results-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.results-score {
+  font-size: 72px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.results-label {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.results-stats {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.results-stats .stat {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+  padding: 12px 20px;
+  text-align: center;
+  min-width: 80px;
+}
+
+.results-stats .stat-num {
+  display: block;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.results-stats .stat-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.results-meters {
+  margin-bottom: 20px;
+}
+
+.results-meters .meter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.meter-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.meter-value {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.meter-value.sharp,
+.meter-value.late {
+  color: var(--accent);
+}
+
+.meter-value.flat,
+.meter-value.early {
+  color: var(--accent-2);
+}
+
+.meter-value.accurate,
+.meter-value.on_time {
+  color: #3daa5f;
+}
+
+.results-feedback {
+  margin-bottom: 24px;
+}
+
+.results-feedback p {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.results-panel #results-close {
+  display: block;
+  margin: 0 auto;
+  background: var(--ink);
+  color: #fff;
+  padding: 12px 32px;
+  font-size: 15px;
+}
+
+/* Inner card for results panel content */
+.results-panel.visible {
+  display: flex;
+}
+
+.results-card {
+  background: var(--panel);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: var(--shadow);
+  max-width: 480px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: fadeIn 0.3s ease;
 }
 
 @media (max-width: 900px) {

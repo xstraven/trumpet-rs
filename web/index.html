@@ -11,6 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   </head>
   <body>
     <main class="page">
@@ -36,6 +37,10 @@
             <span class="label">You</span>
             <span id="current-note">--</span>
           </div>
+          <div class="status-item pitch-meter-item">
+            <span class="label">Pitch</span>
+            <canvas id="pitch-meter" width="200" height="40"></canvas>
+          </div>
         </div>
       </header>
 
@@ -44,7 +49,7 @@
           <h2>Controls</h2>
           <div class="control-group">
             <label class="file">
-              <input id="file-input" type="file" accept=".xml,.musicxml" />
+              <input id="file-input" type="file" accept=".xml,.musicxml,.mxl" />
               <span>Choose MusicXML</span>
             </label>
           </div>
@@ -67,13 +72,46 @@
             <label class="label">Status</label>
             <div id="status" class="value">Loading app...</div>
           </div>
+
+          <hr class="divider" />
+          <h3>Exercises</h3>
+          <div class="control-group">
+            <select id="exercise-type" class="piece-select" aria-label="Exercise type">
+              <option value="long_tones">Long Tones</option>
+              <option value="major_scale">Major Scale</option>
+              <option value="chromatic">Chromatic</option>
+              <option value="lip_slurs">Lip Slurs</option>
+              <option value="intervals">Intervals</option>
+              <option value="arpeggios">Arpeggios</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <select id="exercise-key" class="piece-select" aria-label="Exercise key">
+              <option value="C4">C4</option>
+              <option value="Bb3">Bb3</option>
+              <option value="F4">F4</option>
+              <option value="G4">G4</option>
+              <option value="D4">D4</option>
+              <option value="Eb4">Eb4</option>
+              <option value="Ab3">Ab3</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <button id="generate-exercise">Generate</button>
+          </div>
         </div>
 
         <div class="panel stage">
+          <div class="view-toggle">
+            <button id="view-game" class="view-btn active">Game View</button>
+            <button id="view-notation" class="view-btn">Notation</button>
+          </div>
           <canvas id="score" width="980" height="420"></canvas>
         </div>
       </section>
     </main>
+
+    <div id="results-panel" class="results-panel"></div>
 
     <script type="module" src="./main.js"></script>
   </body>
