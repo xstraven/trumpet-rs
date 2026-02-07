@@ -397,6 +397,218 @@ canvas {
   animation: fadeIn 0.3s ease;
 }
 
+/* Mode tabs */
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.mode-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+  transform: none;
+  box-shadow: none;
+}
+
+.mode-btn.active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+/* Curriculum tree */
+#curriculum-tree {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.curriculum-stage {
+  margin-bottom: 16px;
+}
+
+.stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 150ms ease;
+}
+
+.stage-header:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.stage-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.stage-lock {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.stage-lock.unlocked {
+  color: #3daa5f;
+  background: rgba(61, 170, 95, 0.1);
+}
+
+.stage-exercises {
+  padding: 8px 0 0 12px;
+}
+
+.stage-exercises.collapsed {
+  display: none;
+}
+
+.exercise-item {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  transition: border-color 150ms ease;
+}
+
+.exercise-item:hover {
+  border-color: var(--accent-2);
+}
+
+.exercise-item .ex-name {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.exercise-item .ex-desc {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.exercise-item .ex-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.exercise-item select {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-family: inherit;
+}
+
+.exercise-item .tempo-slider {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.exercise-item input[type="range"] {
+  width: 80px;
+  accent-color: var(--accent-2);
+}
+
+.exercise-item .ex-generate {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 999px;
+  background: var(--accent-2);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+.exercise-item .ex-generate:hover {
+  transform: none;
+  box-shadow: none;
+  opacity: 0.9;
+}
+
+.exercise-item .ex-best {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.exercise-item .ex-best.passed {
+  color: #3daa5f;
+}
+
+/* Technique metrics in results */
+.results-technique {
+  margin-bottom: 20px;
+}
+
+.results-technique h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+}
+
+.technique-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.technique-bar .tech-label {
+  font-size: 12px;
+  width: 100px;
+  color: var(--muted);
+}
+
+.technique-bar .tech-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.technique-bar .tech-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 300ms ease;
+}
+
+.technique-bar .tech-value {
+  font-size: 12px;
+  width: 36px;
+  text-align: right;
+  font-weight: 500;
+}
+
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;

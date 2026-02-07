@@ -1,6 +1,8 @@
 use crate::scoring::types::*;
 
-const NOTE_NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTE_NAMES: [&str; 12] = [
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+];
 
 fn midi_to_name(midi: i32) -> String {
     let name = NOTE_NAMES[(midi.rem_euclid(12)) as usize];
@@ -17,6 +19,16 @@ pub fn analyze_performance(
     played_notes: &[PlayedNote],
     tolerance_cents: f64,
     timing_tolerance_beats: f64,
+) -> PerformanceAnalysis {
+    analyze_performance_with_trail(score, played_notes, tolerance_cents, timing_tolerance_beats, None)
+}
+
+pub fn analyze_performance_with_trail(
+    score: &Score,
+    played_notes: &[PlayedNote],
+    tolerance_cents: f64,
+    timing_tolerance_beats: f64,
+    pitch_trail: Option<&[PitchTrailPoint]>,
 ) -> PerformanceAnalysis {
     let target_notes: Vec<&NoteEvent> = score.notes.iter().filter(|n| !n.is_rest).collect();
     let total_notes = target_notes.len() as u32;
@@ -35,6 +47,11 @@ pub fn analyze_performance(
             feedback: vec!["No notes in score to analyze.".to_string()],
             overall_score: 0.0,
             note_results: Vec::new(),
+            pitch_stability: None,
+            attack_quality: None,
+            breath_support: None,
+            endurance_delta: None,
+            technique_feedback: Vec::new(),
         };
     }
 
@@ -249,6 +266,14 @@ pub fn analyze_performance(
     };
     let overall_score = (correct_rate * 60.0 + hit_rate * 20.0 + pitch_score * 0.2).min(100.0);
 
+    // Technique analysis
+    let (pitch_stability, attack_quality, breath_support, endurance_delta, technique_feedback) =
+        if let Some(trail) = pitch_trail {
+            analyze_technique(&target_notes, &note_results, trail)
+        } else {
+            (None, None, None, None, Vec::new())
+        };
+
     PerformanceAnalysis {
         total_notes,
         notes_correct,
@@ -262,7 +287,157 @@ pub fn analyze_performance(
         feedback,
         overall_score,
         note_results,
+        pitch_stability,
+        attack_quality,
+        breath_support,
+        endurance_delta,
+        technique_feedback,
     }
+}
+
+fn analyze_technique(
+    target_notes: &[&NoteEvent],
+    note_results: &[NoteResult],
+    pitch_trail: &[PitchTrailPoint],
+) -> (Option<f64>, Option<f64>, Option<f64>, Option<f64>, Vec<String>) {
+    if pitch_trail.is_empty() || target_notes.is_empty() {
+        return (None, None, None, None, Vec::new());
+    }
+
+    let mut stability_values: Vec<f64> = Vec::new();
+    let mut attack_times: Vec<f64> = Vec::new();
+    let mut sustain_drifts: Vec<f64> = Vec::new();
+    let mut technique_feedback = Vec::new();
+
+    for target in target_notes {
+        let note_end = target.start_beat + target.duration_beats;
+        let trail_points: Vec<&PitchTrailPoint> = pitch_trail
+            .iter()
+            .filter(|p| p.beat >= target.start_beat && p.beat < note_end)
+            .collect();
+
+        if trail_points.len() < 3 {
+            continue;
+        }
+
+        let target_midi = target.midi as f64;
+
+        // Pitch stability: std dev of cents within held notes
+        let cents: Vec<f64> = trail_points
+            .iter()
+            .map(|p| (p.midi_float - target_midi) * 100.0)
+            .collect();
+        let mean_cents = cents.iter().sum::<f64>() / cents.len() as f64;
+        let variance = cents.iter().map(|c| (c - mean_cents).powi(2)).sum::<f64>() / cents.len() as f64;
+        stability_values.push(variance.sqrt());
+
+        // Attack quality: how many trail points until within 20 cents of target
+        let mut attack_count = 0;
+        for c in &cents {
+            if c.abs() <= 20.0 {
+                break;
+            }
+            attack_count += 1;
+        }
+        let attack_ratio = attack_count as f64 / trail_points.len() as f64;
+        attack_times.push(attack_ratio);
+
+        // Breath support: for notes >= 2 beats, compare first half avg vs second half avg
+        if target.duration_beats >= 2.0 {
+            let mid = trail_points.len() / 2;
+            if mid > 0 {
+                let first_avg: f64 =
+                    trail_points[..mid].iter().map(|p| p.midi_float).sum::<f64>() / mid as f64;
+                let second_avg: f64 = trail_points[mid..]
+                    .iter()
+                    .map(|p| p.midi_float)
+                    .sum::<f64>()
+                    / (trail_points.len() - mid) as f64;
+                let drift_cents = (second_avg - first_avg).abs() * 100.0;
+                sustain_drifts.push(drift_cents);
+            }
+        }
+    }
+
+    // Aggregate pitch stability
+    let pitch_stability = if !stability_values.is_empty() {
+        Some(stability_values.iter().sum::<f64>() / stability_values.len() as f64)
+    } else {
+        None
+    };
+
+    // Aggregate attack quality (0 = instant, 1 = never stabilizes)
+    let attack_quality = if !attack_times.is_empty() {
+        let avg_attack = attack_times.iter().sum::<f64>() / attack_times.len() as f64;
+        Some((1.0 - avg_attack).max(0.0))
+    } else {
+        None
+    };
+
+    // Aggregate breath support (lower drift = better)
+    let breath_support = if !sustain_drifts.is_empty() {
+        let avg_drift = sustain_drifts.iter().sum::<f64>() / sustain_drifts.len() as f64;
+        Some((1.0 - (avg_drift / 50.0).min(1.0)).max(0.0))
+    } else {
+        None
+    };
+
+    // Endurance delta: compare accuracy in first half vs second half of note_results
+    let endurance_delta = if note_results.len() >= 4 {
+        let mid = note_results.len() / 2;
+        let first_correct = note_results[..mid]
+            .iter()
+            .filter(|r| r.status == "correct")
+            .count() as f64
+            / mid as f64;
+        let second_correct = note_results[mid..]
+            .iter()
+            .filter(|r| r.status == "correct")
+            .count() as f64
+            / (note_results.len() - mid) as f64;
+        Some((first_correct - second_correct) * 100.0)
+    } else {
+        None
+    };
+
+    // Generate technique feedback
+    if let Some(stability) = pitch_stability {
+        if stability > 15.0 {
+            technique_feedback.push(
+                "Your pitch wobbles on sustained notes. Focus on steady airflow.".to_string(),
+            );
+        }
+    }
+    if let Some(attack) = attack_quality {
+        if attack < 0.7 {
+            technique_feedback.push(
+                "Your note attacks are slow to center. Try a firmer tongue stroke.".to_string(),
+            );
+        }
+    }
+    if let Some(breath) = breath_support {
+        if breath < 0.7 {
+            technique_feedback.push(
+                "Your pitch drops through long notes. Practice deep breathing.".to_string(),
+            );
+        }
+    }
+    if let Some(delta) = endurance_delta {
+        if delta > 15.0 {
+            technique_feedback.push(
+                "Your accuracy drops later in the piece. Build endurance with long tones."
+                    .to_string(),
+            );
+        }
+    }
+
+    (
+        pitch_stability,
+        attack_quality,
+        breath_support,
+        endurance_delta,
+        technique_feedback,
+    )
 }
 
 fn analyze_intervals(
@@ -445,5 +620,76 @@ mod tests {
         };
         let result = analyze_performance(&score, &[], 50.0, 0.25);
         assert_eq!(result.total_notes, 0);
+    }
+
+    #[test]
+    fn test_technique_analysis_with_trail() {
+        let score = make_score(vec![(0.0, 4.0, 60), (4.0, 4.0, 62)]);
+        let played = vec![
+            PlayedNote {
+                onset_beat: 0.0,
+                midi_float: 60.0,
+                midi_rounded: 60,
+                confidence: 0.9,
+            },
+            PlayedNote {
+                onset_beat: 4.0,
+                midi_float: 62.0,
+                midi_rounded: 62,
+                confidence: 0.9,
+            },
+        ];
+        // Simulate a stable pitch trail for the first note, wobbling on second
+        let mut trail = Vec::new();
+        for i in 0..20 {
+            trail.push(PitchTrailPoint {
+                beat: i as f64 * 0.2,
+                midi_float: 60.0 + 0.01, // very stable
+            });
+        }
+        for i in 0..20 {
+            let wobble = if i % 2 == 0 { 0.3 } else { -0.3 };
+            trail.push(PitchTrailPoint {
+                beat: 4.0 + i as f64 * 0.2,
+                midi_float: 62.0 + wobble, // wobbling
+            });
+        }
+
+        let result =
+            analyze_performance_with_trail(&score, &played, 50.0, 0.5, Some(&trail));
+        assert_eq!(result.notes_correct, 2);
+        assert!(result.pitch_stability.is_some());
+        assert!(result.attack_quality.is_some());
+        assert!(result.breath_support.is_some());
+    }
+
+    #[test]
+    fn test_endurance_delta() {
+        // 8 notes, first 4 perfect, last 4 missed
+        let score = make_score(vec![
+            (0.0, 1.0, 60),
+            (1.0, 1.0, 62),
+            (2.0, 1.0, 64),
+            (3.0, 1.0, 65),
+            (4.0, 1.0, 67),
+            (5.0, 1.0, 69),
+            (6.0, 1.0, 71),
+            (7.0, 1.0, 72),
+        ]);
+        let played = vec![
+            PlayedNote { onset_beat: 0.0, midi_float: 60.0, midi_rounded: 60, confidence: 0.9 },
+            PlayedNote { onset_beat: 1.0, midi_float: 62.0, midi_rounded: 62, confidence: 0.9 },
+            PlayedNote { onset_beat: 2.0, midi_float: 64.0, midi_rounded: 64, confidence: 0.9 },
+            PlayedNote { onset_beat: 3.0, midi_float: 65.0, midi_rounded: 65, confidence: 0.9 },
+            // last 4 missed
+        ];
+        let trail: Vec<PitchTrailPoint> = (0..40)
+            .map(|i| PitchTrailPoint { beat: i as f64 * 0.2, midi_float: 60.0 })
+            .collect();
+        let result = analyze_performance_with_trail(&score, &played, 50.0, 0.5, Some(&trail));
+        // First half: 4/4 correct, second half: 0/4 correct => delta = 100
+        assert!(result.endurance_delta.is_some());
+        let delta = result.endurance_delta.unwrap();
+        assert!(delta > 50.0, "Expected large endurance delta, got {}", delta);
     }
 }

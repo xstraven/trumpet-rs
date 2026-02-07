@@ -125,6 +125,7 @@ dependencies = [
 name = "trumpet_rs"
 version = "0.1.0"
 dependencies = [
+ "js-sys",
  "quick-xml",
  "serde",
  "serde-wasm-bindgen",

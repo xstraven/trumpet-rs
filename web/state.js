@@ -7,6 +7,7 @@ export const state = {
   playStart: 0,
   lastBeat: 0,
   currentView: "game", // "game" or "notation"
+  mode: "play_along", // "play_along" or "practice"
 
   // Audio
   audioCtx: null,

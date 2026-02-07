@@ -19,6 +19,137 @@ impl PitchResult {
 
 const YIN_THRESHOLD: f32 = 0.15;
 
+/// Pre-allocated YIN pitch detector. Reuses buffers across calls to avoid
+/// heap allocation on the hot path.
+pub struct PitchDetector {
+    sample_rate: f32,
+    min_lag: usize,
+    max_lag: usize,
+    diff: Vec<f32>,
+    cmnd: Vec<f32>,
+}
+
+impl PitchDetector {
+    pub fn new(sample_rate: f32, min_freq: f32, max_freq: f32, buffer_size: usize) -> Self {
+        let min_lag = (sample_rate / max_freq).ceil() as usize;
+        let max_lag = ((sample_rate / min_freq).floor() as usize).min(buffer_size / 2);
+        let len = max_lag + 1;
+        PitchDetector {
+            sample_rate,
+            min_lag,
+            max_lag,
+            diff: vec![0.0; len],
+            cmnd: vec![0.0; len],
+        }
+    }
+
+    pub fn detect(&mut self, samples: &[f32]) -> PitchResult {
+        if samples.len() < 2 || self.sample_rate <= 0.0 {
+            return PitchResult::silence();
+        }
+
+        // RMS silence detection
+        let mean = samples.iter().sum::<f32>() / samples.len() as f32;
+        let mut energy = 0.0f32;
+        for &s in samples {
+            let v = s - mean;
+            energy += v * v;
+        }
+        let rms = (energy / samples.len() as f32).sqrt();
+        if rms < 0.02 {
+            return PitchResult::silence();
+        }
+
+        let half_len = samples.len() / 2;
+        let max_lag = self.max_lag.min(half_len);
+        let min_lag = self.min_lag;
+
+        if min_lag >= max_lag || max_lag < 2 {
+            return PitchResult::silence();
+        }
+
+        // Clear and compute difference function
+        for v in self.diff.iter_mut().take(max_lag + 1) {
+            *v = 0.0;
+        }
+        for tau in 1..=max_lag {
+            let mut sum = 0.0f32;
+            for j in 0..half_len {
+                let d = samples[j] - samples[j + tau];
+                sum += d * d;
+            }
+            self.diff[tau] = sum;
+        }
+
+        // CMND
+        self.cmnd[0] = 1.0;
+        let mut running_sum = 0.0f32;
+        for tau in 1..=max_lag {
+            running_sum += self.diff[tau];
+            if running_sum > 0.0 {
+                self.cmnd[tau] = self.diff[tau] * tau as f32 / running_sum;
+            } else {
+                self.cmnd[tau] = 1.0;
+            }
+        }
+
+        // Absolute threshold
+        let mut best_tau = 0usize;
+        for tau in min_lag..=max_lag {
+            if self.cmnd[tau] < YIN_THRESHOLD {
+                let mut t = tau;
+                while t + 1 <= max_lag && self.cmnd[t + 1] < self.cmnd[t] {
+                    t += 1;
+                }
+                best_tau = t;
+                break;
+            }
+        }
+
+        if best_tau == 0 {
+            let mut min_val = f32::MAX;
+            for tau in min_lag..=max_lag {
+                if self.cmnd[tau] < min_val {
+                    min_val = self.cmnd[tau];
+                    best_tau = tau;
+                }
+            }
+            if min_val > 0.5 {
+                return PitchResult::silence();
+            }
+        }
+
+        // Parabolic interpolation
+        let tau_refined = if best_tau > 0 && best_tau < max_lag {
+            let alpha = self.cmnd[best_tau - 1];
+            let beta = self.cmnd[best_tau];
+            let gamma = self.cmnd[best_tau + 1];
+            let denom = 2.0 * (2.0 * beta - alpha - gamma);
+            if denom.abs() > 1e-10 {
+                best_tau as f32 + (alpha - gamma) / denom
+            } else {
+                best_tau as f32
+            }
+        } else {
+            best_tau as f32
+        };
+
+        if tau_refined <= 0.0 {
+            return PitchResult::silence();
+        }
+
+        let hz = self.sample_rate / tau_refined;
+        let confidence = 1.0 - self.cmnd[best_tau].min(1.0);
+        let midi_float = 69.0 + 12.0 * (hz / 440.0).log2();
+
+        PitchResult {
+            hz,
+            confidence,
+            midi_float,
+        }
+    }
+}
+
 /// Detect pitch using the YIN algorithm.
 /// Returns a PitchResult with frequency, confidence, and fractional MIDI number.
 pub fn detect_pitch_yin(samples: &[f32], sample_rate: f32) -> PitchResult {
@@ -190,6 +321,17 @@ mod tests {
     fn test_yin_empty() {
         let result = detect_pitch_yin(&[], 44100.0);
         assert_eq!(result.hz, 0.0);
+    }
+
+    #[test]
+    fn test_pitch_detector_struct() {
+        let mut detector = PitchDetector::new(44100.0, 80.0, 1200.0, 2048);
+        let samples = generate_sine(440.0, 44100.0, 0.1);
+        let result = detector.detect(&samples);
+        assert!(result.hz > 0.0, "Should detect pitch");
+        let error = (result.hz - 440.0).abs();
+        assert!(error < 2.0, "Expected ~440 Hz, got {} (error {})", result.hz, error);
+        assert!(result.confidence > 0.8);
     }
 
     #[test]

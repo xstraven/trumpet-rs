@@ -3,17 +3,44 @@ use crate::scoring::types::{MeasureInfo, NoteEvent, Score};
 use crate::parser::musicxml::midi_from_pitch;
 
 pub fn generate(exercise_type: &str, key: &str, tempo: f64) -> Result<Score, String> {
-    let root_midi = key_to_midi(key)?;
+    generate_with_options(exercise_type, key, tempo, None, None)
+}
 
-    match exercise_type {
-        "long_tones" => Ok(generate_long_tones(root_midi, tempo)),
-        "major_scale" => Ok(generate_major_scale(root_midi, tempo)),
-        "chromatic" => Ok(generate_chromatic(root_midi, tempo)),
+pub fn generate_with_options(
+    exercise_type: &str,
+    key: &str,
+    tempo: f64,
+    difficulty: Option<u8>,
+    midi_range: Option<(i32, i32)>,
+) -> Result<Score, String> {
+    let root_midi = key_to_midi(key)?;
+    let diff = difficulty.unwrap_or(2);
+
+    let mut score = match exercise_type {
+        "long_tones" => Ok(generate_long_tones(root_midi, tempo, diff)),
+        "major_scale" => Ok(generate_major_scale(root_midi, tempo, diff)),
+        "chromatic" => Ok(generate_chromatic(root_midi, tempo, diff)),
         "lip_slurs" => Ok(generate_lip_slurs(root_midi, tempo)),
         "intervals" => Ok(generate_intervals(root_midi, tempo)),
         "arpeggios" => Ok(generate_arpeggios(root_midi, tempo)),
+        "tonguing" => Ok(generate_tonguing(root_midi, tempo, diff)),
+        "broken_thirds" => Ok(generate_broken_thirds(root_midi, tempo, diff)),
+        "octave_studies" => Ok(generate_octave_studies(root_midi, tempo)),
         _ => Err(format!("Unknown exercise type: {}", exercise_type)),
+    }?;
+
+    // Clamp notes to midi_range if provided
+    if let Some((low, high)) = midi_range {
+        score.notes.retain(|n| n.is_rest || (n.midi >= low && n.midi <= high));
+        // Recalculate total_beats
+        score.total_beats = score
+            .notes
+            .iter()
+            .map(|n| n.start_beat + n.duration_beats)
+            .fold(0.0_f64, f64::max);
     }
+
+    Ok(score)
 }
 
 fn key_to_midi(key: &str) -> Result<i32, String> {
@@ -105,45 +132,55 @@ fn make_rest(start_beat: f64, duration_beats: f64, measure: u32) -> NoteEvent {
     }
 }
 
-fn generate_long_tones(root_midi: i32, tempo: f64) -> Score {
-    // Play each note for 4 beats (whole note), ascending chromatically
-    // from root to root+12, then back down
+fn note_duration_for_difficulty(difficulty: u8) -> f64 {
+    match difficulty {
+        1 => 4.0,     // whole notes
+        2 => 2.0,     // half notes
+        3 => 1.0,     // quarter notes
+        _ => 0.5,     // eighth notes
+    }
+}
+
+fn generate_long_tones(root_midi: i32, tempo: f64, difficulty: u8) -> Score {
+    // Duration depends on difficulty — higher difficulty = shorter notes
+    let dur = if difficulty <= 2 { 4.0 } else { 2.0 };
     let mut notes = Vec::new();
     let mut beat = 0.0;
 
     for i in 0..=12 {
         let midi = root_midi + i;
         let measure = (beat / 4.0) as u32 + 1;
-        notes.push(make_note(beat, 4.0, midi, measure));
-        beat += 4.0;
+        notes.push(make_note(beat, dur, midi, measure));
+        beat += dur;
     }
     // Back down
     for i in (0..12).rev() {
         let midi = root_midi + i;
         let measure = (beat / 4.0) as u32 + 1;
-        notes.push(make_note(beat, 4.0, midi, measure));
-        beat += 4.0;
+        notes.push(make_note(beat, dur, midi, measure));
+        beat += dur;
     }
 
     build_score(notes, tempo)
 }
 
-fn generate_major_scale(root_midi: i32, tempo: f64) -> Score {
+fn generate_major_scale(root_midi: i32, tempo: f64, difficulty: u8) -> Score {
     let intervals = [0, 2, 4, 5, 7, 9, 11, 12];
+    let dur = note_duration_for_difficulty(difficulty);
     let mut notes = Vec::new();
     let mut beat = 0.0;
 
     // Up
     for &interval in &intervals {
         let measure = (beat / 4.0) as u32 + 1;
-        notes.push(make_note(beat, 1.0, root_midi + interval, measure));
-        beat += 1.0;
+        notes.push(make_note(beat, dur, root_midi + interval, measure));
+        beat += dur;
     }
     // Down
     for &interval in intervals[..7].iter().rev() {
         let measure = (beat / 4.0) as u32 + 1;
-        notes.push(make_note(beat, 1.0, root_midi + interval, measure));
-        beat += 1.0;
+        notes.push(make_note(beat, dur, root_midi + interval, measure));
+        beat += dur;
     }
     // End on root whole note
     let measure = (beat / 4.0) as u32 + 1;
@@ -152,21 +189,22 @@ fn generate_major_scale(root_midi: i32, tempo: f64) -> Score {
     build_score(notes, tempo)
 }
 
-fn generate_chromatic(root_midi: i32, tempo: f64) -> Score {
+fn generate_chromatic(root_midi: i32, tempo: f64, difficulty: u8) -> Score {
+    let dur = note_duration_for_difficulty(difficulty);
     let mut notes = Vec::new();
     let mut beat = 0.0;
 
     // Up one octave
     for i in 0..=12 {
         let measure = (beat / 4.0) as u32 + 1;
-        notes.push(make_note(beat, 1.0, root_midi + i, measure));
-        beat += 1.0;
+        notes.push(make_note(beat, dur, root_midi + i, measure));
+        beat += dur;
     }
     // Down
     for i in (0..12).rev() {
         let measure = (beat / 4.0) as u32 + 1;
-        notes.push(make_note(beat, 1.0, root_midi + i, measure));
-        beat += 1.0;
+        notes.push(make_note(beat, dur, root_midi + i, measure));
+        beat += dur;
     }
     // End on root
     let measure = (beat / 4.0) as u32 + 1;
@@ -258,6 +296,86 @@ fn generate_arpeggios(root_midi: i32, tempo: f64) -> Score {
     build_score(notes, tempo)
 }
 
+fn generate_tonguing(root_midi: i32, tempo: f64, difficulty: u8) -> Score {
+    // Repeated notes with varying rhythm patterns for articulation
+    let dur = note_duration_for_difficulty(difficulty);
+    let pitches = [0, 2, 4, 5, 7]; // scale degrees
+    let mut notes = Vec::new();
+    let mut beat = 0.0;
+
+    for &interval in &pitches {
+        let midi = root_midi + interval;
+        // Repeat each pitch 4 times
+        for _ in 0..4 {
+            let measure = (beat / 4.0) as u32 + 1;
+            notes.push(make_note(beat, dur, midi, measure));
+            beat += dur;
+        }
+        // Short rest
+        let measure = (beat / 4.0) as u32 + 1;
+        notes.push(make_rest(beat, dur, measure));
+        beat += dur;
+    }
+
+    build_score(notes, tempo)
+}
+
+fn generate_broken_thirds(root_midi: i32, tempo: f64, difficulty: u8) -> Score {
+    // Scale in thirds: C-E, D-F, E-G, F-A, G-B, A-C, B-D, C
+    let scale = [0, 2, 4, 5, 7, 9, 11, 12]; // major scale intervals
+    let dur = note_duration_for_difficulty(difficulty);
+    let mut notes = Vec::new();
+    let mut beat = 0.0;
+
+    // Ascending thirds
+    for i in 0..scale.len().saturating_sub(2) {
+        let measure = (beat / 4.0) as u32 + 1;
+        notes.push(make_note(beat, dur, root_midi + scale[i], measure));
+        beat += dur;
+        let measure = (beat / 4.0) as u32 + 1;
+        notes.push(make_note(beat, dur, root_midi + scale[i + 2], measure));
+        beat += dur;
+    }
+    // Descending thirds
+    for i in (0..scale.len().saturating_sub(2)).rev() {
+        let measure = (beat / 4.0) as u32 + 1;
+        notes.push(make_note(beat, dur, root_midi + scale[i + 2], measure));
+        beat += dur;
+        let measure = (beat / 4.0) as u32 + 1;
+        notes.push(make_note(beat, dur, root_midi + scale[i], measure));
+        beat += dur;
+    }
+    // End on root
+    let measure = (beat / 4.0) as u32 + 1;
+    notes.push(make_note(beat, 2.0, root_midi, measure));
+
+    build_score(notes, tempo)
+}
+
+fn generate_octave_studies(root_midi: i32, tempo: f64) -> Score {
+    // Octave jumps on the same pitch class
+    let scale_degrees = [0, 2, 4, 5, 7]; // C, D, E, F, G
+    let mut notes = Vec::new();
+    let mut beat = 0.0;
+
+    for &degree in &scale_degrees {
+        let low = root_midi + degree;
+        let high = low + 12;
+        // Low-High-Low-High pattern
+        for &midi in &[low, high, low, high] {
+            let measure = (beat / 4.0) as u32 + 1;
+            notes.push(make_note(beat, 1.0, midi, measure));
+            beat += 1.0;
+        }
+        // Rest
+        let measure = (beat / 4.0) as u32 + 1;
+        notes.push(make_rest(beat, 1.0, measure));
+        beat += 1.0;
+    }
+
+    build_score(notes, tempo)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,6 +410,9 @@ mod tests {
             "lip_slurs",
             "intervals",
             "arpeggios",
+            "tonguing",
+            "broken_thirds",
+            "octave_studies",
         ] {
             let result = generate(exercise_type, "C4", 100.0);
             assert!(result.is_ok(), "Failed to generate {}", exercise_type);
@@ -305,5 +426,54 @@ mod tests {
     fn test_unknown_type() {
         let result = generate("nonexistent", "C4", 120.0);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_generate_with_difficulty() {
+        let score_easy = generate_with_options("major_scale", "C4", 100.0, Some(1), None).unwrap();
+        let score_hard = generate_with_options("major_scale", "C4", 100.0, Some(4), None).unwrap();
+        // Easy uses whole notes (4 beats), hard uses eighth notes (0.5 beats)
+        // Both have same number of notes but different durations
+        assert_eq!(score_easy.notes.len(), score_hard.notes.len());
+        assert!(score_easy.total_beats > score_hard.total_beats);
+    }
+
+    #[test]
+    fn test_generate_with_midi_range() {
+        let score = generate_with_options("chromatic", "C4", 100.0, None, Some((60, 66))).unwrap();
+        // All non-rest notes should be within range
+        for note in &score.notes {
+            if !note.is_rest {
+                assert!(
+                    note.midi >= 60 && note.midi <= 66,
+                    "Note {} out of range [60, 66]",
+                    note.midi
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_tonguing_exercise() {
+        let score = generate("tonguing", "C4", 120.0).unwrap();
+        assert!(!score.notes.is_empty());
+        // Should have repeated notes
+        let non_rest: Vec<_> = score.notes.iter().filter(|n| !n.is_rest).collect();
+        assert!(non_rest.len() >= 10);
+    }
+
+    #[test]
+    fn test_broken_thirds() {
+        let score = generate("broken_thirds", "C4", 120.0).unwrap();
+        assert!(!score.notes.is_empty());
+    }
+
+    #[test]
+    fn test_octave_studies() {
+        let score = generate("octave_studies", "C4", 120.0).unwrap();
+        let non_rest: Vec<_> = score.notes.iter().filter(|n| !n.is_rest).collect();
+        // Should contain octave jumps (12 semitones)
+        let has_octave = non_rest.windows(2).any(|w| (w[1].midi - w[0].midi).abs() == 12);
+        assert!(has_octave, "Octave studies should contain octave jumps");
     }
 }

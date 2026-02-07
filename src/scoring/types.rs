@@ -31,6 +31,12 @@ pub struct NoteResult {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PitchTrailPoint {
+    pub beat: f64,
+    pub midi_float: f64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct IntervalProblem {
     pub from_note: String,
     pub to_note: String,
@@ -53,6 +59,12 @@ pub struct PerformanceAnalysis {
     pub feedback: Vec<String>,
     pub overall_score: f64, // 0-100
     pub note_results: Vec<NoteResult>,
+    // Technique analysis (populated when pitch_trail is provided)
+    pub pitch_stability: Option<f64>,  // std dev of pitch in cents within held notes
+    pub attack_quality: Option<f64>,   // 0-1 score, how quickly pitch stabilizes
+    pub breath_support: Option<f64>,   // 0-1 score, pitch sustain consistency
+    pub endurance_delta: Option<f64>,  // accuracy drop: first half vs second half
+    pub technique_feedback: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
